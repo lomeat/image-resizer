@@ -1,70 +1,84 @@
 import React, { ChangeEvent } from "react";
+import Resizer from "react-image-file-resizer";
 
 export function App() {
+  const [image, setImage] = React.useState<string | null>(null);
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
   const [file, setFile] = React.useState<File>();
-
-  const [width, setWidth] = React.useState<number>(0);
-  const [height, setHeight] = React.useState<number>(0);
-
-  const imgRef = React.useRef<HTMLImageElement | null>(null);
-  function handleSizeChange(
-    e: React.ChangeEvent<HTMLInputElement>,
-    type: "width" | "height"
-  ) {
-    const value = +e.target.value;
-
-    if (type === "width") {
-      setWidth(value);
-      setHeight((width) => Math.floor((height * value) / width));
-    } else if (type === "height") {
-      setHeight(value);
-      setWidth((height) => Math.floor((width * value) / height));
-    }
-  }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
-      const image = e.target.files[0];
+      try {
+        const reader = new FileReader();
+        const file = e.target.files[0];
 
-      setFile(image);
+        reader.readAsDataURL(e.target.files[0]);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
 
-      if (imgRef.current) {
-        imgRef.current.src = URL.createObjectURL(image);
-        setWidth(imgRef.current?.width || 10);
+          img.onload = () => {
+            setSize({
+              width:
+                img.width > img.height ? 512 : (img.width * 512) / img.height,
+              height:
+                img.height > img.width ? 512 : (img.height * 512) / img.width,
+            });
+          };
+        };
+
+        setFile(file);
+      } catch (err) {
+        console.log(err);
       }
     }
   }
 
-  function onImageLoad() {
-    // setSize({
-    //   width: imgRef.current?.width || 0,
-    //   height: imgRef.current?.height || 0,
-    // });
-    setWidth(imgRef.current?.width || 10);
-  }
+  React.useEffect(() => {
+    async function resizeImage() {
+      try {
+        if (file) {
+          Resizer.imageFileResizer(
+            file,
+            size.width,
+            size.height,
+            "PNG",
+            100,
+            0,
+            (uri) => {
+              setImage(uri as string);
+              const a = document.createElement("a");
+              a.href = uri as string;
+              a.download = file?.name ?? "filename";
+              a.click();
+            },
+            "base64"
+          );
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    if (size.width && size.height) {
+      resizeImage();
+    }
+  }, [size, file]);
 
   return (
-    <div>
-      <input
-        disabled={!file}
-        value={width}
-        onChange={(e) => handleSizeChange(e, "width")}
-      />
-      <input
-        disabled={!file}
-        value={height}
-        onChange={(e) => handleSizeChange(e, "height")}
-      />
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        margin: "100px auto",
+        width: 512,
+        gap: 16,
+      }}
+    >
+      <h1>Telegram Sticker Auto-resizer to 512px by one side</h1>
       <input type="file" onChange={handleFileChange} />
-      {file && (
-        <img
-          ref={imgRef}
-          src={file.name}
-          alt="resize"
-          width={width}
-          height={height}
-          onLoad={onImageLoad}
-        />
+      {image && (
+        <img src={image} alt="resize" width={size.width} height={size.height} />
       )}
     </div>
   );
